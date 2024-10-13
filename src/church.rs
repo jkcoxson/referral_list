@@ -3,6 +3,7 @@
 
 use std::{io::Write, sync::Arc};
 
+use log::{info, warn};
 use reqwest::{redirect::Policy, Client};
 use reqwest_cookie_store::CookieStoreMutex;
 use serde::Deserialize;
@@ -28,11 +29,13 @@ impl ChurchClient {
         let bearer_token = if let Ok(b) = std::fs::read_to_string(&env.bearer_token_path) {
             Some(BearerToken::from_base64(b)?)
         } else {
+            info!("No bearer token saved");
             None
         };
 
         // Check if the file exists
         if !std::fs::exists(&cookie_store_path)? {
+            info!("No cookies saved");
             std::fs::write(&cookie_store_path, "[]".as_bytes())?;
         }
         let cookie_store = {
@@ -66,6 +69,7 @@ impl ChurchClient {
     }
 
     pub async fn save_cookies(&self) -> anyhow::Result<()> {
+        info!("Saving cookies");
         let mut writer = std::fs::File::create(&self.env.cookie_store_path)
             .map(std::io::BufWriter::new)
             .unwrap();
@@ -75,6 +79,7 @@ impl ChurchClient {
     }
 
     async fn write_bearer_token(&self, token: &str) -> anyhow::Result<()> {
+        info!("Saving bearer token");
         let mut writer = std::fs::File::create(&self.env.bearer_token_path)
             .map(std::io::BufWriter::new)
             .unwrap();
@@ -84,9 +89,11 @@ impl ChurchClient {
 
     /// Logs into churchofjesuschrist.org
     pub async fn login(&mut self) -> anyhow::Result<BearerToken> {
+        info!("Logging into referral manager");
         self.cookie_store.lock().unwrap().clear();
 
         // Get the inital login page
+        info!("Loading the initial login page");
         let res = self
             .http_client
             .get("https://referralmanager.churchofjesuschrist.org")
@@ -124,6 +131,7 @@ impl ChurchClient {
             state_handle: String,
         }
         // Trade the state token for the state handle
+        info!("Trading the token for the state handle");
         let state_handle = self
             .http_client
             .post("https://id.churchofjesuschrist.org/idp/idx/introspect")
@@ -137,6 +145,7 @@ impl ChurchClient {
             .state_handle;
 
         // Send the username
+        info!("Sending the username");
         let body = json!({
             "stateHandle": state_handle,
             "identifier": self.env.church_username
@@ -164,6 +173,8 @@ impl ChurchClient {
         struct SuccessResponse {
             href: String,
         }
+
+        info!("Sending the password");
         let body = json!({
             "stateHandle": state_handle,
             "credentials": {
@@ -183,9 +194,11 @@ impl ChurchClient {
             .await?;
 
         // Set cookies
+        info!("Getting the success href");
         self.http_client.get(res.success.href).send().await?;
 
         // Get the bearer token
+        info!("Getting the bearer token");
         let token = self
             .http_client
             .get("https://referralmanager.churchofjesuschrist.org/services/auth")
@@ -212,6 +225,7 @@ impl ChurchClient {
 
     /// Gets the list of everyone from the referral manager. This is a HUGE request at roughly 8mb in the CSDM
     pub async fn get_people_list(&mut self) -> anyhow::Result<Vec<persons::Person>> {
+        info!("Getting the people list from referral manager");
         let mut tries = 0;
 
         while tries < MAX_RETRIES {
@@ -225,11 +239,14 @@ impl ChurchClient {
             .send().await {
                 if let Ok(list) = list.json::<serde_json::Value>().await {
                     let list = persons::Person::parse_lossy(list);
+                    info!("Received {} people from referral manager", list.len());
                     return Ok(list);
                 } else {
+                    warn!("Getting the people list failed at JSON parse");
                     self.bearer_token = None;
                 }
             } else {
+                warn!("Getting the people list failed at the request");
                 self.bearer_token = None;
             }
         }

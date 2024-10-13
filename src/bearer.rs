@@ -1,6 +1,7 @@
 // Jackson Coxson
 
 use base64::Engine;
+use log::error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
@@ -23,6 +24,7 @@ impl BearerToken {
             let claims = serde_json::from_slice::<Claims>(&claims)?;
             Ok(Self { token, claims })
         } else {
+            error!("Bearer token doesn't contain enough sections");
             Err(anyhow::anyhow!(
                 "Bearer token doesn't contain enough sections"
             ))

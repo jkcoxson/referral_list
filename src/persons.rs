@@ -2,6 +2,7 @@
 
 use chrono::naive::serde::ts_milliseconds;
 use chrono::NaiveDateTime;
+use log::warn;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -46,8 +47,10 @@ impl Person {
         if let serde_json::Value::Array(persons) = object["persons"].take() {
             let mut res: Vec<Self> = Vec::with_capacity(persons.len());
             for person in persons {
-                if let Ok(p) = serde_json::from_value(person) {
+                if let Ok(p) = serde_json::from_value(person.clone()) {
                     res.push(p);
+                } else {
+                    warn!("Unable to parse person: {person:?}");
                 }
             }
             res

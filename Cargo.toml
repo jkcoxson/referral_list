@@ -17,3 +17,5 @@ serde_repr = { version = "0.1" }
 serde_with = { version = "3.11" }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = { version = "0.22" }
+env_logger = { version = "0.11" }
+log = { version = "0.4" }
