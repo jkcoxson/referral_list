@@ -2,3 +2,4 @@
 bearer.token
 cookies.json
 .env
+*.json
