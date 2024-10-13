@@ -8,15 +8,16 @@ use reqwest_cookie_store::CookieStoreMutex;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::env;
+use crate::{bearer::BearerToken, env, persons};
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36";
+const MAX_RETRIES: u8 = 3;
 
 pub struct ChurchClient {
     http_client: Client,
     cookie_store: Arc<CookieStoreMutex>,
     env: env::Env,
-    bearer_token: Option<String>,
+    bearer_token: Option<BearerToken>,
 }
 
 impl ChurchClient {
@@ -24,7 +25,11 @@ impl ChurchClient {
         let cookie_store_path = std::env::var("COOKIE_STORE_PATH").unwrap();
 
         // Check if the bearer token exists
-        let bearer_token = std::fs::read_to_string(&env.bearer_token_path).ok();
+        let bearer_token = if let Ok(b) = std::fs::read_to_string(&env.bearer_token_path) {
+            Some(BearerToken::from_base64(b)?)
+        } else {
+            None
+        };
 
         // Check if the file exists
         if !std::fs::exists(&cookie_store_path)? {
@@ -44,7 +49,6 @@ impl ChurchClient {
             .user_agent(USER_AGENT)
             .cookie_provider(Arc::clone(&cookie_store))
             .redirect(Policy::custom(|a| {
-                println!("Redir to {}", a.url());
                 if a.previous().len() > 5 {
                     a.stop()
                 } else {
@@ -79,7 +83,7 @@ impl ChurchClient {
     }
 
     /// Logs into churchofjesuschrist.org
-    pub async fn login(&mut self) -> anyhow::Result<()> {
+    pub async fn login(&mut self) -> anyhow::Result<BearerToken> {
         self.cookie_store.lock().unwrap().clear();
 
         // Get the inital login page
@@ -199,9 +203,37 @@ impl ChurchClient {
 
         self.save_cookies().await?;
         self.write_bearer_token(&token).await?;
-        self.bearer_token = Some(token);
 
-        Ok(())
+        let token = BearerToken::from_base64(token)?;
+        self.bearer_token = Some(token.clone());
+
+        Ok(token)
+    }
+
+    /// Gets the list of everyone from the referral manager. This is a HUGE request at roughly 8mb in the CSDM
+    pub async fn get_people_list(&mut self) -> anyhow::Result<Vec<persons::Person>> {
+        let mut tries = 0;
+
+        while tries < MAX_RETRIES {
+            let token = match &self.bearer_token {
+                Some(t) => t,
+                None => &self.login().await?,
+            };
+            tries += 1;
+            if let Ok(list) = self.http_client.get(format!("https://referralmanager.churchofjesuschrist.org/services/people/mission/{}?includeDroppedPersons=true", token.claims.mission_id))
+            .header("Authorization", format!("Bearer {}", token.token))
+            .send().await {
+                if let Ok(list) = list.json::<serde_json::Value>().await {
+                    let list = persons::Person::parse_lossy(list);
+                    return Ok(list);
+                } else {
+                    self.bearer_token = None;
+                }
+            } else {
+                self.bearer_token = None;
+            }
+        }
+        Err(anyhow::anyhow!("Max tries exceeded"))
     }
 }
 
