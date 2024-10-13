@@ -1,7 +1,9 @@
 // Jackson Coxson
 
+mod bearer;
 mod church;
 mod env;
+mod persons;
 
 #[tokio::main]
 async fn main() {
