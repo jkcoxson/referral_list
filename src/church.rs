@@ -1,8 +1,15 @@
 // Jackson Coxson
 // Code to interact with church servers
 
-use std::{io::Write, sync::Arc};
+use std::{
+    io::Write,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+use anyhow::Context;
 use log::{info, warn};
 use reqwest::{redirect::Policy, Client};
 use reqwest_cookie_store::CookieStoreMutex;
@@ -23,10 +30,11 @@ pub struct ChurchClient {
 
 impl ChurchClient {
     pub async fn new(env: env::Env) -> anyhow::Result<Self> {
-        let cookie_store_path = std::env::var("COOKIE_STORE_PATH").unwrap();
-
         // Check if the bearer token exists
-        let bearer_token = if let Ok(b) = std::fs::read_to_string(&env.bearer_token_path) {
+        let bearer_path = PathBuf::from_str(&env.working_path)?.join("bearer.token");
+        let cookies_path = PathBuf::from_str(&env.working_path)?.join("cookies.json");
+
+        let bearer_token = if let Ok(b) = std::fs::read_to_string(&bearer_path) {
             Some(BearerToken::from_base64(b)?)
         } else {
             info!("No bearer token saved");
@@ -34,12 +42,12 @@ impl ChurchClient {
         };
 
         // Check if the file exists
-        if !std::fs::exists(&cookie_store_path)? {
+        if !std::fs::exists(&cookies_path)? {
             info!("No cookies saved");
-            std::fs::write(&cookie_store_path, "[]".as_bytes())?;
+            std::fs::write(&cookies_path, "".as_bytes())?;
         }
         let cookie_store = {
-            let file = std::fs::File::open(&cookie_store_path)
+            let file = std::fs::File::open(&cookies_path)
                 .map(std::io::BufReader::new)
                 .unwrap();
             // use re-exported version of `CookieStore` for crate compatibility
@@ -52,12 +60,14 @@ impl ChurchClient {
             .user_agent(USER_AGENT)
             .cookie_provider(Arc::clone(&cookie_store))
             .redirect(Policy::custom(|a| {
-                if a.previous().len() > 5 {
+                info!("Redirecting to {}", a.url());
+                if a.previous().len() > 2 {
                     a.stop()
                 } else {
                     a.follow()
                 }
             }))
+            .timeout(std::time::Duration::from_secs(60))
             .build()
             .expect("Couldn't build the HTTP client");
         Ok(Self {
@@ -70,7 +80,8 @@ impl ChurchClient {
 
     pub async fn save_cookies(&self) -> anyhow::Result<()> {
         info!("Saving cookies");
-        let mut writer = std::fs::File::create(&self.env.cookie_store_path)
+        let cookies_path = PathBuf::from_str(&self.env.working_path)?.join("cookies.json");
+        let mut writer = std::fs::File::create(&cookies_path)
             .map(std::io::BufWriter::new)
             .unwrap();
         let store = self.cookie_store.lock().unwrap();
@@ -80,7 +91,8 @@ impl ChurchClient {
 
     async fn write_bearer_token(&self, token: &str) -> anyhow::Result<()> {
         info!("Saving bearer token");
-        let mut writer = std::fs::File::create(&self.env.bearer_token_path)
+        let bearer_path = PathBuf::from_str(&self.env.working_path)?.join("bearer.token");
+        let mut writer = std::fs::File::create(&bearer_path)
             .map(std::io::BufWriter::new)
             .unwrap();
         writer.write_all(token.as_bytes())?;
@@ -251,6 +263,53 @@ impl ChurchClient {
             }
         }
         Err(anyhow::anyhow!("Max tries exceeded"))
+    }
+
+    /// Gets a cached list from referral manager to save trips to church servers.
+    /// A cache will be considered 'hit' if the list is less than an hour old.
+    pub async fn get_cached_people_list(&mut self) -> anyhow::Result<Vec<persons::Person>> {
+        let lists_path = PathBuf::from_str(&self.env.working_path)?.join("people_lists");
+        std::fs::create_dir_all(&lists_path)?;
+
+        let now = SystemTime::now();
+        let now = now
+            .duration_since(UNIX_EPOCH)
+            .context("Your clock is wrong")?
+            .as_secs();
+
+        // Read all the entries in the cache
+        for f in std::fs::read_dir(&lists_path)? {
+            match f {
+                Ok(f) if f.file_type()?.is_file() => {
+                    if let Ok(file_name) = f.file_name().into_string() {
+                        if let Some(file_name) = file_name.split_once('.') {
+                            if let Ok(timestamp) = file_name.0.parse::<u64>() {
+                                if let Some(diff) = now.checked_sub(timestamp) {
+                                    if diff < 60 * 60 {
+                                        info!("Cache hit");
+                                        return Ok(persons::Person::parse_lossy(
+                                            serde_json::from_str(
+                                                &std::fs::read_to_string(f.path()).unwrap(),
+                                            )?,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+        info!("Cache miss");
+        let list = self.get_people_list().await?;
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(lists_path.join(format!("{now}.json")))?;
+        serde_json::to_writer(file, &list)?;
+        Ok(list)
     }
 }
 

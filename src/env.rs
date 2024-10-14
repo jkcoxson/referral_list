@@ -3,13 +3,13 @@
 use std::io::Write;
 
 use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
+use log::error;
 
 #[derive(Clone)]
 pub struct Env {
     pub church_username: String,
     pub church_password: String,
-    pub cookie_store_path: String,
-    pub bearer_token_path: String,
+    pub working_path: String,
 }
 
 /// Checks the environment variables to make sure we are good to go.
@@ -41,26 +41,18 @@ pub fn check_vars() -> Env {
             save_var("CHURCH_PASSWORD", &password);
             password
         }),
-        cookie_store_path: std::env::var("COOKIE_STORE_PATH").unwrap_or_else(|_| {
-            let here = std::env::current_dir().unwrap().join("cookies.json");
+        working_path: std::env::var("WORKING_PATH").unwrap_or_else(|_| {
+            let here = std::env::current_dir().unwrap().join("rm_working_path");
+            if std::fs::create_dir_all(&here).is_err() {
+                error!("Creating directory {here:?} failed!");
+            }
             let here = here.to_string_lossy();
             let password: String = Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("Enter the path to store the auth cookies. If unsure, just press enter for the default value.")
+                .with_prompt("Path to cache data fetched and processed from church servers. If unsure, just press enter for the default value.")
                 .default(here.to_string())
                 .interact_text()
                 .unwrap();
-            save_var("COOKIE_STORE_PATH", &password);
-            password
-        }),
-        bearer_token_path: std::env::var("BEARER_TOKEN_PATH").unwrap_or_else(|_| {
-            let here = std::env::current_dir().unwrap().join("bearer.token");
-            let here = here.to_string_lossy();
-            let password: String = Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("Enter the path to store the bearer token. This allows us to reuse sessions. If unsure, just press enter for the default value.")
-                .default(here.to_string())
-                .interact_text()
-                .unwrap();
-            save_var("BEARER_TOKEN_PATH", &password);
+            save_var("WORKING_PATH", &password);
             password
         }),
     }

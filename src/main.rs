@@ -12,6 +12,6 @@ async fn main() {
     env_logger::init();
     let mut church_client = church::ChurchClient::new(env).await.unwrap();
     church_client.login().await.unwrap();
-    let list = church_client.get_people_list().await.unwrap();
+    let list = church_client.get_cached_people_list().await.unwrap();
     println!("{:#?}", list);
 }
