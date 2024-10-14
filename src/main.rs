@@ -3,6 +3,7 @@
 use chrono::{Duration, Utc};
 use church::ChurchClient;
 use dialoguer::{theme::ColorfulTheme, Select};
+use indicatif::ProgressBar;
 use log::info;
 
 mod bearer;
@@ -13,8 +14,8 @@ mod report;
 
 const CLI_OPTIONS: [&str; 3] = ["report", "generate", "exit"];
 const CLI_DESCRIPTONS: [&str; 3] = [
-    "Reads today's report or fetches a new one",
-    "Generates a list of uncontacted referrals, regardless of the cache",
+    "Reads today's report of uncontacted referrals or fetches a new one",
+    "Generates a new list of uncontacted referrals, regardless of the cache.",
     "Exits the program",
 ];
 
@@ -100,7 +101,9 @@ async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result<rep
     info!("{} uncontacted referrals", persons_list.len());
 
     let mut report = report::Report::new();
+    let bar = ProgressBar::new(persons_list.len() as u64);
     for person in persons_list {
+        bar.inc(1);
         if match church_client.get_person_last_contact(&person).await? {
             Some(t) => now.signed_duration_since(t) > Duration::hours(48),
             None => true,
