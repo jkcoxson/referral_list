@@ -56,6 +56,11 @@ impl Report {
                     res = format!("{res}\n  - {p}");
                 }
             }
+            res = format!("{res}\n\n");
+        }
+        res = format!("{res}\nUnassigned Referrals");
+        for p in &self.unassigned {
+            res = format!("  - {p}")
         }
         res
     }
