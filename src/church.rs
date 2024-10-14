@@ -310,8 +310,45 @@ impl ChurchClient {
             .create(true)
             .truncate(true)
             .open(lists_path.join(format!("{now}.json")))?;
-        serde_json::to_writer(file, &list)?;
+        serde_json::to_writer(file, &json!({"persons": &list}))?;
         Ok(list)
+    }
+
+    pub async fn get_person_timeline(
+        &mut self,
+        person: &persons::Person,
+    ) -> anyhow::Result<Vec<persons::TimelineEvent>> {
+        info!("Getting timeline for {}", person.guid);
+        let mut tries = 0;
+
+        while tries < MAX_RETRIES {
+            tries += 1;
+            if let Ok(list) = self
+                .http_client
+                .get(format!(
+                    "https://referralmanager.churchofjesuschrist.org/services/progress/timeline/{}",
+                    person.guid
+                ))
+                .send()
+                .await
+            {
+                if let Ok(list) = list.json::<serde_json::Value>().await {
+                    let list = persons::TimelineEvent::parse_lossy(list);
+                    info!(
+                        "Received {} timeline events from referral manager",
+                        list.len()
+                    );
+                    return Ok(list);
+                } else {
+                    warn!("Getting the timeline events list failed at JSON parse");
+                    self.login().await?;
+                }
+            } else {
+                warn!("Getting the timeline events list failed at the request");
+                self.login().await?;
+            }
+        }
+        Err(anyhow::anyhow!("Max tries exceeded"))
     }
 }
 
