@@ -21,6 +21,7 @@ use crate::{bearer::BearerToken, env, persons};
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36";
 const MAX_RETRIES: u8 = 3;
 
+#[derive(Debug)]
 pub struct ChurchClient {
     http_client: Client,
     cookie_store: Arc<CookieStoreMutex>,
@@ -60,10 +61,10 @@ impl ChurchClient {
             .user_agent(USER_AGENT)
             .cookie_provider(Arc::clone(&cookie_store))
             .redirect(Policy::custom(|a| {
-                info!("Redirecting to {}", a.url());
                 if a.previous().len() > 2 {
                     a.stop()
                 } else {
+                    info!("Redirecting to {}", a.url());
                     a.follow()
                 }
             }))
@@ -216,8 +217,7 @@ impl ChurchClient {
         let token = self
             .http_client
             .get("https://referralmanager.churchofjesuschrist.org/services/auth")
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Authorization", "")
+            .header("Accept", "application/json")
             .send()
             .await?
             .json::<serde_json::Value>()
