@@ -31,6 +31,9 @@ pub struct Person {
     #[serde(rename = "zoneId")]
     pub zone_id: Option<usize>,
 
+    #[serde(rename = "zoneName")]
+    pub zone_name: Option<String>,
+
     #[serde(rename = "districtId")]
     pub district_id: Option<usize>,
 
@@ -81,7 +84,7 @@ impl TimelineEvent {
                 if let Ok(p) = serde_json::from_value(person.clone()) {
                     res.push(p);
                 } else {
-                    warn!("Unable to parse person: {person:?}");
+                    warn!("Unable to parse timeline event: {person:?}");
                 }
             }
             res
@@ -99,7 +102,7 @@ pub enum ReferralStatus {
     Successful = 30,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, PartialEq, Clone, Debug)]
+#[derive(Serialize_repr, Deserialize_repr, PartialEq, Clone, Debug, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum PersonStatus {
     Yellow = 1,
@@ -125,6 +128,8 @@ pub enum TimelineItemType {
     StoppedTeaching,
     #[serde(rename = "CONTACT")]
     Contact,
+    #[serde(rename = "TEACHING")]
+    Teaching,
     #[serde(rename = "NEW_REFERRAL")]
     NewReferral,
     #[serde(rename = "PERSON_CREATE")]

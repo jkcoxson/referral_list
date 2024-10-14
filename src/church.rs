@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
+use chrono::NaiveDateTime;
 use log::{info, warn};
 use reqwest::{redirect::Policy, Client};
 use reqwest_cookie_store::CookieStoreMutex;
@@ -25,7 +26,7 @@ const MAX_RETRIES: u8 = 3;
 pub struct ChurchClient {
     http_client: Client,
     cookie_store: Arc<CookieStoreMutex>,
-    env: env::Env,
+    pub env: env::Env,
     bearer_token: Option<BearerToken>,
 }
 
@@ -349,6 +350,25 @@ impl ChurchClient {
             }
         }
         Err(anyhow::anyhow!("Max tries exceeded"))
+    }
+
+    pub async fn get_person_last_contact(
+        &mut self,
+        person: &persons::Person,
+    ) -> anyhow::Result<Option<NaiveDateTime>> {
+        let timeline = self.get_person_timeline(person).await?;
+        for item in timeline {
+            match item.item_type {
+                persons::TimelineItemType::Contact | persons::TimelineItemType::Teaching => {
+                    return Ok(Some(item.item_date))
+                }
+                persons::TimelineItemType::NewReferral => return Ok(None),
+                _ => {
+                    continue;
+                }
+            }
+        }
+        Ok(None)
     }
 }
 
