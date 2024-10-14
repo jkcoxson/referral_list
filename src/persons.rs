@@ -14,37 +14,68 @@ pub struct Persons {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Person {
     #[serde(rename = "personGuid")]
-    guid: String,
+    pub guid: String,
 
     #[serde(rename = "firstName")]
-    first_name: String,
+    pub first_name: String,
 
     #[serde(rename = "referralStatusId")]
-    referral_status: ReferralStatus,
+    pub referral_status: ReferralStatus,
 
     #[serde(rename = "personStatusId")]
-    person_status: PersonStatus,
+    pub person_status: PersonStatus,
 
     #[serde(rename = "missionId")]
-    mission_id: usize,
+    pub mission_id: usize,
 
     #[serde(rename = "zoneId")]
-    zone_id: Option<usize>,
+    pub zone_id: Option<usize>,
 
     #[serde(rename = "districtId")]
-    district_id: Option<usize>,
+    pub district_id: Option<usize>,
 
     #[serde(rename = "areaName")]
-    area_name: Option<String>,
+    pub area_name: Option<String>,
 
     #[serde(rename = "referralAssignedDate")]
     #[serde(with = "ts_milliseconds")]
-    assigned_date: NaiveDateTime,
+    pub assigned_date: NaiveDateTime,
 }
 
 impl Person {
     pub fn parse_lossy(mut object: serde_json::Value) -> Vec<Self> {
         if let serde_json::Value::Array(persons) = object["persons"].take() {
+            let mut res: Vec<Self> = Vec::with_capacity(persons.len());
+            for person in persons {
+                if let Ok(p) = serde_json::from_value(person.clone()) {
+                    res.push(p);
+                } else {
+                    warn!("Unable to parse person: {person:?}");
+                }
+            }
+            res
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TimelineEvent {
+    #[serde(rename = "timelineItemType")]
+    pub item_type: TimelineItemType,
+
+    #[serde(rename = "itemDate")]
+    #[serde(with = "ts_milliseconds")]
+    pub item_date: NaiveDateTime,
+
+    #[serde(rename = "eventStatus")]
+    pub status: Option<bool>,
+}
+
+impl TimelineEvent {
+    pub fn parse_lossy(object: serde_json::Value) -> Vec<Self> {
+        if let serde_json::Value::Array(persons) = object {
             let mut res: Vec<Self> = Vec::with_capacity(persons.len());
             for person in persons {
                 if let Ok(p) = serde_json::from_value(person.clone()) {
@@ -86,6 +117,20 @@ pub enum PersonStatus {
     OutsideAreaStrength = 28,
     Member = 40,
     Moved = 201,
+}
+
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
+pub enum TimelineItemType {
+    #[serde(rename = "STOPPED_TEACHING")]
+    StoppedTeaching,
+    #[serde(rename = "CONTACT")]
+    Contact,
+    #[serde(rename = "NEW_REFERRAL")]
+    NewReferral,
+    #[serde(rename = "PERSON_CREATE")]
+    PersonCreate,
+    #[serde(rename = "PERSON_OFFER_ITEM")]
+    PersonOfferItem,
 }
 
 #[cfg(test)]
