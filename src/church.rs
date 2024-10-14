@@ -85,7 +85,9 @@ impl ChurchClient {
             .map(std::io::BufWriter::new)
             .unwrap();
         let store = self.cookie_store.lock().unwrap();
-        store.save_json(&mut writer).unwrap();
+        store
+            .save_incl_expired_and_nonpersistent_json(&mut writer)
+            .unwrap();
         Ok(())
     }
 
