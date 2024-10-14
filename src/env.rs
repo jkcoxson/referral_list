@@ -5,7 +5,7 @@ use std::io::Write;
 use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
 use log::error;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Env {
     pub church_username: String,
     pub church_password: String,
