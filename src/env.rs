@@ -1,6 +1,11 @@
 // Jackson Coxson
 
-use std::io::Write;
+use std::{
+    collections::HashMap,
+    io::{BufRead, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
 use log::error;
@@ -78,5 +83,53 @@ fn save_var(key: &str, val: &str) {
             .unwrap();
 
         file.write_all(format!("{key}={val}\n").as_bytes()).unwrap();
+    }
+}
+
+impl Env {
+    pub fn load_contacts(&self) -> anyhow::Result<HashMap<String, usize>> {
+        // Load or create the CSV file
+        let csv_path = PathBuf::from_str(&self.working_path)?.join("contact_times.csv");
+        if !std::fs::exists(&csv_path)? {
+            return Ok(HashMap::new());
+        }
+
+        let mut res = HashMap::new();
+
+        let file = std::fs::File::open(&csv_path)?;
+        let reader = std::io::BufReader::new(file);
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    let mut line = line.split(',');
+                    if let Some(guid) = line.next() {
+                        if let Some(time) = line.next() {
+                            if let Ok(time) = time.parse::<usize>() {
+                                res.insert(guid.to_string(), time);
+                            }
+                        }
+                    }
+                }
+                Err(e) => return Err(anyhow::anyhow!(e)),
+            }
+        }
+
+        Ok(res)
+    }
+
+    pub fn save_contacts(&self, contacts: &HashMap<String, usize>) -> anyhow::Result<()> {
+        // Load or create the CSV file
+        let csv_path = PathBuf::from_str(&self.working_path)?.join("contact_times.csv");
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&csv_path)?;
+
+        let mut writer = std::io::BufWriter::new(file);
+        for (k, v) in contacts {
+            writeln!(&mut writer, "{k},{v}")?;
+        }
+        Ok(())
     }
 }

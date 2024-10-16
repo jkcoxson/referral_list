@@ -370,6 +370,42 @@ impl ChurchClient {
         }
         Ok(None)
     }
+
+    pub async fn get_person_contact_time(
+        &mut self,
+        person: &persons::Person,
+    ) -> anyhow::Result<Option<usize>> {
+        let mut timeline = self.get_person_timeline(person).await?;
+        timeline.reverse();
+
+        let mut referral_sent = None;
+        let mut last_contact = None;
+
+        for item in timeline {
+            match item.item_type {
+                persons::TimelineItemType::NewReferral => {
+                    referral_sent = Some(item.item_date);
+                    last_contact = None;
+                }
+                persons::TimelineItemType::Contact | persons::TimelineItemType::Teaching => {
+                    if last_contact.is_none() {
+                        last_contact = Some(item.item_date);
+                    }
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+
+        if let Some(referral_sent) = referral_sent {
+            if let Some(last_contact) = last_contact {
+                let duration = last_contact.signed_duration_since(referral_sent);
+                return Ok(Some(duration.num_minutes() as usize));
+            }
+        }
+        Ok(None)
+    }
 }
 
 /// Function to decode escape sequences including \xNN

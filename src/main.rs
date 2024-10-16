@@ -1,5 +1,7 @@
 // Jackson Coxson
 
+use std::collections::HashMap;
+
 use chrono::{Duration, Utc};
 use church::ChurchClient;
 use dialoguer::{theme::ColorfulTheme, Select};
@@ -12,10 +14,11 @@ mod env;
 mod persons;
 mod report;
 
-const CLI_OPTIONS: [&str; 3] = ["report", "generate", "exit"];
-const CLI_DESCRIPTONS: [&str; 3] = [
+const CLI_OPTIONS: [&str; 4] = ["report", "generate", "average", "exit"];
+const CLI_DESCRIPTONS: [&str; 4] = [
     "Reads today's report of uncontacted referrals or fetches a new one",
     "Generates a new list of uncontacted referrals, regardless of the cache.",
+    "Gets the average contact time in minutes between zones",
     "Exits the program",
 ];
 
@@ -73,6 +76,13 @@ async fn parse_argument(arg: &str, church_client: &mut ChurchClient) -> anyhow::
             generate_report(church_client).await?;
             Ok(true)
         }
+        "average" => {
+            let contacts = get_average(church_client).await?;
+            for (k, v) in contacts {
+                println!("{k}: {v}");
+            }
+            Ok(true)
+        }
         "exit" => Ok(false),
         "help" | "-h" => {
             println!("Referral List - a tool to get and parse a list of referrals from referral manager.");
@@ -114,4 +124,54 @@ async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result<rep
 
     report.save_report(&church_client.env)?;
     Ok(report)
+}
+
+async fn get_average(church_client: &mut ChurchClient) -> anyhow::Result<HashMap<String, usize>> {
+    let mut contacts = church_client.env.load_contacts()?;
+
+    let persons_list = church_client.get_cached_people_list().await?.to_vec();
+    let now = Utc::now().naive_utc();
+    let persons_list: Vec<persons::Person> = persons_list
+        .into_iter()
+        .filter(|x| {
+            x.referral_status != persons::ReferralStatus::NotAttempted
+                && x.person_status < persons::PersonStatus::NewMember
+                && now.signed_duration_since(x.assigned_date) < Duration::days(42)
+        })
+        .collect();
+
+    let mut zones = HashMap::new();
+    let bar = ProgressBar::new(persons_list.len() as u64);
+    for person in persons_list {
+        if let Some(zone_name) = &person.zone_name {
+            bar.inc(1);
+            let t = if let Some(t) = contacts.get(&person.guid) {
+                t.to_owned()
+            } else if let Some(t) = church_client.get_person_contact_time(&person).await? {
+                contacts.insert(person.guid, t);
+                t
+            } else {
+                continue;
+            };
+            let zone = match zones.get_mut(zone_name) {
+                Some(z) => z,
+                None => {
+                    zones.insert(zone_name.clone(), Vec::new());
+                    zones.get_mut(zone_name).unwrap()
+                }
+            };
+            zone.push(t);
+        }
+    }
+    bar.finish();
+
+    church_client.env.save_contacts(&contacts)?;
+
+    let mut res = HashMap::new();
+    for (k, v) in zones {
+        let sum: usize = v.iter().sum();
+        let avg = sum / v.len();
+        res.insert(k, avg);
+    }
+    Ok(res)
 }
