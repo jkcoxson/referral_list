@@ -136,6 +136,16 @@ pub enum TimelineItemType {
     PersonCreate,
     #[serde(rename = "PERSON_OFFER_ITEM")]
     PersonOfferItem,
+    #[serde(rename = "SACRAMENT")]
+    Sacrament,
+    #[serde(rename = "TEACHING_RESET")]
+    TeachingReset,
+    #[serde(rename = "PERSON_PLN_NOTE")]
+    Note,
+    #[serde(rename = "PERSON_TASK")]
+    Task,
+    #[serde(rename = "EMAIL_SUBSCRIPTION")]
+    EmailSubscription,
 }
 
 #[cfg(test)]
