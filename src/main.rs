@@ -11,14 +11,16 @@ use log::info;
 mod bearer;
 mod church;
 mod env;
+mod holly;
 mod persons;
 mod report;
 
-const CLI_OPTIONS: [&str; 4] = ["report", "generate", "average", "exit"];
-const CLI_DESCRIPTONS: [&str; 4] = [
+const CLI_OPTIONS: [&str; 5] = ["report", "generate", "average", "settings", "exit"];
+const CLI_DESCRIPTONS: [&str; 5] = [
     "Reads today's report of uncontacted referrals or fetches a new one",
     "Generates a new list of uncontacted referrals, regardless of the cache.",
     "Gets the average contact time in minutes between zones",
+    "Change the settings for Holly",
     "Exits the program",
 ];
 
@@ -81,6 +83,17 @@ async fn parse_argument(arg: &str, church_client: &mut ChurchClient) -> anyhow::
             for (k, v) in contacts {
                 println!("{k}: {v}");
             }
+            Ok(true)
+        }
+        "settings" => {
+            let config = match holly::Config::potential_load(&church_client.env).await? {
+                Some(mut c) => {
+                    c.update(church_client).await?;
+                    c
+                }
+                None => holly::Config::force_load(church_client).await?,
+            };
+            church_client.holly_config = Some(config);
             Ok(true)
         }
         "exit" => Ok(false),
