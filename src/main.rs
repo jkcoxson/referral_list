@@ -15,11 +15,12 @@ mod holly;
 mod persons;
 mod report;
 
-const CLI_OPTIONS: [&str; 5] = ["report", "generate", "average", "settings", "exit"];
-const CLI_DESCRIPTONS: [&str; 5] = [
+const CLI_OPTIONS: [&str; 6] = ["report", "generate", "average", "holly", "settings", "exit"];
+const CLI_DESCRIPTONS: [&str; 6] = [
     "Reads today's report of uncontacted referrals or fetches a new one",
     "Generates a new list of uncontacted referrals, regardless of the cache.",
     "Gets the average contact time in minutes between zones",
+    "Connects to Holly and responds to messages",
     "Change the settings for Holly",
     "Exits the program",
 ];
@@ -85,13 +86,17 @@ async fn parse_argument(arg: &str, church_client: &mut ChurchClient) -> anyhow::
             }
             Ok(true)
         }
+        "holly" => {
+            holly::main(church_client).await?;
+            Ok(false)
+        }
         "settings" => {
-            let config = match holly::Config::potential_load(&church_client.env).await? {
+            let config = match holly::config::Config::potential_load(&church_client.env).await? {
                 Some(mut c) => {
                     c.update(church_client).await?;
                     c
                 }
-                None => holly::Config::force_load(church_client).await?,
+                None => holly::config::Config::force_load(church_client).await?,
             };
             church_client.holly_config = Some(config);
             Ok(true)

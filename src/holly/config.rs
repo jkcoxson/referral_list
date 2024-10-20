@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
-    last_transfer_start: i64,
-    zone_chats: HashMap<usize, String>,
-    holly_socket: String,
-    name: String,
+    pub last_transfer_start: i64,
+    pub zone_chats: HashMap<usize, String>,
+    pub holly_socket: String,
+    pub name: String,
 }
 
 impl Config {

@@ -28,7 +28,7 @@ pub struct ChurchClient {
     cookie_store: Arc<CookieStoreMutex>,
     pub env: env::Env,
     bearer_token: Option<BearerToken>,
-    pub holly_config: Option<crate::holly::Config>,
+    pub holly_config: Option<crate::holly::config::Config>,
 }
 
 impl ChurchClient {
@@ -74,7 +74,7 @@ impl ChurchClient {
             .build()
             .expect("Couldn't build the HTTP client");
 
-        let holly_config = crate::holly::Config::potential_load(&env).await?;
+        let holly_config = crate::holly::config::Config::potential_load(&env).await?;
 
         Ok(Self {
             http_client,
