@@ -115,7 +115,7 @@ async fn parse_argument(arg: &str, church_client: &mut ChurchClient) -> anyhow::
     }
 }
 
-async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result<report::Report> {
+pub async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result<report::Report> {
     let persons_list = church_client.get_cached_people_list().await?;
     let now = Utc::now().naive_utc();
     let persons_list: Vec<persons::Person> = persons_list
@@ -144,7 +144,9 @@ async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result<rep
     Ok(report)
 }
 
-async fn get_average(church_client: &mut ChurchClient) -> anyhow::Result<HashMap<String, usize>> {
+pub async fn get_average(
+    church_client: &mut ChurchClient,
+) -> anyhow::Result<HashMap<String, usize>> {
     let mut contacts = church_client.env.load_contacts()?;
 
     let persons_list = church_client.get_cached_people_list().await?.to_vec();
