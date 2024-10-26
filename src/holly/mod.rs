@@ -5,11 +5,12 @@ use std::{path::PathBuf, str::FromStr};
 use chrono::NaiveDate;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender};
+use tokio::{io::AsyncReadExt, sync::mpsc::UnboundedSender, time::sleep_until};
 
 use crate::church::ChurchClient;
 
 pub mod config;
+mod send_time;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
@@ -30,6 +31,8 @@ pub async fn main(church_client: &mut ChurchClient) -> anyhow::Result<()> {
 
     loop {
         let mut stream = tokio::net::TcpStream::connect(&holly_config.holly_socket).await?;
+        let mut next_time_check =
+            tokio::time::Instant::now() + tokio::time::Duration::from_secs(20);
         if loop {
             let mut buf = [0u8; 1024 * 8];
             tokio::select! {
@@ -60,6 +63,14 @@ pub async fn main(church_client: &mut ChurchClient) -> anyhow::Result<()> {
                         break false;
                     }
                 }
+                _ = sleep_until(next_time_check) => {
+                    info!("Checking if it's time to send Holly's list");
+                    next_time_check = tokio::time::Instant::now() + tokio::time::Duration::from_secs(20);
+                    let mut st = send_time::SendTime::load(&church_client.env).await?;
+                    if st.is_go_time().await? {
+                        info!("Sending Holly's list!");
+                    }
+                }
                 _ = rx.recv() => {
                     info!("Disconnecting from Holly...");
                     break true;
@@ -77,21 +88,4 @@ fn user_input_loop(sender: UnboundedSender<()>) {
     let mut buf = String::new();
     let _ = std::io::stdin().read_line(&mut buf).is_ok();
     let _ = sender.send(()).is_ok();
-}
-
-fn read_last_sent(env: &crate::env::Env) -> anyhow::Result<NaiveDate> {
-    let path = PathBuf::from_str(&env.working_path)?.join("last_sent");
-    let now = chrono::Local::now().naive_local().date();
-    if !std::fs::exists(&path)? {
-        std::fs::write(&path, now.to_string())?;
-    }
-    let s = std::fs::read_to_string(&path)?;
-    match NaiveDate::from_str(&s) {
-        Ok(d) => Ok(d),
-        Err(e) => {
-            warn!("Unable to parse NaiveDate: {e:?}");
-            std::fs::write(&path, now.to_string())?;
-            Ok(now)
-        }
-    }
 }
