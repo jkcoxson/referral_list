@@ -1,6 +1,6 @@
 // Jackson Coxson
 
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 use chrono::{Days, NaiveDateTime, NaiveTime, Timelike};
 use rand::Rng;
@@ -24,18 +24,6 @@ impl SendTime {
         let mut res: Self = serde_json::from_str(&s)?;
         res.path = file_path;
         Ok(res)
-    }
-
-    pub async fn update_last(&mut self, last: NaiveDateTime) -> anyhow::Result<()> {
-        self.last = last;
-        self.save().await?;
-        Ok(())
-    }
-
-    pub async fn update_next(&mut self, next: NaiveDateTime) -> anyhow::Result<()> {
-        self.next = next;
-        self.save().await?;
-        Ok(())
     }
 
     pub async fn is_go_time(&mut self) -> anyhow::Result<bool> {
