@@ -44,18 +44,7 @@ impl Report {
     pub fn pretty_print(&self) -> String {
         let mut res = "".to_string();
         for (zone_id, areas) in &self.people {
-            let zone_name = &zone_id.to_string();
-            let zone_name = self.zones.get(zone_id).unwrap_or(zone_name);
-
-            println!("{zone_name}");
-            res = format!("{res}\n{zone_name}");
-            for (area, people) in areas {
-                println!(" - {area}");
-                res = format!("{res}\n\n - {area}");
-                for p in people {
-                    res = format!("{res}\n  - {p}");
-                }
-            }
+            res = format!("{res}{}", self.pretty_print_zone(zone_id, areas));
             res = format!("{res}\n\n");
         }
         res = format!("{res}\nUnassigned Referrals");
@@ -63,6 +52,26 @@ impl Report {
             res = format!("  - {p}")
         }
         res
+    }
+
+    fn pretty_print_zone(&self, zone_id: &usize, areas: &HashMap<String, Vec<String>>) -> String {
+        let mut res = "".to_string();
+        let zone_name = &zone_id.to_string();
+        let zone_name = self.zones.get(zone_id).unwrap_or(zone_name);
+
+        res = format!("{res}\n{zone_name}");
+        for (area, people) in areas {
+            res = format!("{res}\n\n - {area}");
+            for p in people {
+                res = format!("{res}\n  - {p}");
+            }
+        }
+        res
+    }
+
+    pub fn get_pretty_zone(&self, zone_id: &usize) -> Option<String> {
+        let areas = self.people.get(zone_id)?;
+        Some(self.pretty_print_zone(zone_id, areas))
     }
 
     pub fn save_report(&self, env: &crate::env::Env) -> anyhow::Result<()> {
