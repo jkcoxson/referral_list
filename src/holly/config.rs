@@ -15,6 +15,7 @@ pub struct Config {
     pub zone_chats: HashMap<usize, String>,
     pub holly_socket: String,
     pub name: String,
+    pub blacklist: Option<Vec<String>>,
 }
 
 impl Config {
@@ -129,6 +130,7 @@ impl Default for Config {
             zone_chats: Default::default(),
             holly_socket: "127.0.0.1:8011".to_string(),
             name: "Holly".to_string(),
+            blacklist: None,
         }
     }
 }
