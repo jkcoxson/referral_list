@@ -104,6 +104,11 @@ pub async fn main(church_client: &mut ChurchClient) -> anyhow::Result<()> {
                             info!("Sending {msg} to {chat_id}");
                             stream.write_all(&Message { content: msg, chat_id: chat_id.to_string(), ..Default::default() }.to_bytes()).await?;
                         }
+                        if let Some(chat_id) = &holly_config.unassigned_chat {
+                            let msg = report.unassigned.join("\n");
+                            info!("Sending {msg} to {chat_id}");
+                            stream.write_all(&Message { content: msg, chat_id: chat_id.to_string(), ..Default::default() }.to_bytes()).await?;
+                        }
                     }
                 }
                 _ = rx.recv() => {

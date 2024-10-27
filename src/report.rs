@@ -11,7 +11,7 @@ use crate::persons::Person;
 pub struct Report {
     people: HashMap<usize, HashMap<String, Vec<String>>>,
     zones: HashMap<usize, String>,
-    unassigned: Vec<String>,
+    pub unassigned: Vec<String>,
 }
 
 impl Report {

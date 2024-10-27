@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub last_transfer_start: i64,
     pub zone_chats: HashMap<usize, String>,
+    pub unassigned_chat: Option<String>,
     pub holly_socket: String,
     pub name: String,
     pub blacklist: Option<Vec<String>>,
@@ -78,6 +79,22 @@ impl Config {
             }
         }
 
+        let blank = "".to_string();
+        let past_id = self.unassigned_chat.clone().unwrap_or(blank);
+        let messenger_id: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(
+                "Enter the Messenger zone chat ID for the referral secretary. Leave blank to skip.",
+            )
+            .allow_empty(true)
+            .default(past_id)
+            .interact_text()
+            .unwrap();
+        if messenger_id.is_empty() {
+            self.unassigned_chat = None
+        } else {
+            self.unassigned_chat = Some(messenger_id)
+        }
+
         let last_transfer_start = chrono::DateTime::from_timestamp(self.last_transfer_start, 0)
             .unwrap_or_default()
             .date_naive();
@@ -128,6 +145,7 @@ impl Default for Config {
         Self {
             last_transfer_start: chrono::Utc::now().timestamp(),
             zone_chats: Default::default(),
+            unassigned_chat: None,
             holly_socket: "127.0.0.1:8011".to_string(),
             name: "Holly".to_string(),
             blacklist: None,
