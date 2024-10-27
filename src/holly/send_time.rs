@@ -88,7 +88,8 @@ impl SendTime {
             .create(true)
             .truncate(true)
             .open(&self.path)?;
-        serde_json::to_writer(file, self)?;
+        serde_json::to_writer(file, self)
+            .context("Unable to serialize or write send time to file")?;
         Ok(())
     }
 }
