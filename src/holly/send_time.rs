@@ -2,6 +2,7 @@
 
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Context;
 use chrono::{Days, NaiveDateTime, NaiveTime, Timelike};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -46,38 +47,30 @@ impl SendTime {
 
     async fn set_next(&mut self) -> anyhow::Result<()> {
         let now = chrono::Local::now().naive_local();
-        if self.last.date() == now.date() {
-            // Define the start and end times
-            let start_time = NaiveTime::from_hms_opt(6, 30, 0).unwrap(); // 6:30 AM
-            let end_time = NaiveTime::from_hms_opt(12, 0, 0).unwrap(); // 12:00 PM
 
-            // Calculate the range in minutes
-            let start_minutes = start_time.num_seconds_from_midnight() / 60;
-            let end_minutes = end_time.num_seconds_from_midnight() / 60;
+        // Define the start and end times
+        // We are still doing 6:30 to 12 even on the same day because this will auto fire even if the time is after.
+        let start_time = NaiveTime::from_hms_opt(6, 30, 0).unwrap(); // 6:30 AM
+        let end_time = NaiveTime::from_hms_opt(12, 0, 0).unwrap(); // 12:00 PM
 
-            // Generate a random number of minutes between the start and end
-            let random_minutes = rand::thread_rng().gen_range(start_minutes..=end_minutes);
-            let random_time = NaiveTime::from_hms_opt(random_minutes / 60, random_minutes % 60, 0);
-            let res = NaiveDateTime::new(
-                now.date().checked_add_days(Days::new(1)).unwrap(),
-                random_time.unwrap(),
-            );
-            self.next = res;
-            self.save().await?;
-        } else {
-            let end_time = NaiveTime::from_hms_opt(12, 0, 0).unwrap(); // 12:00 PM
+        // Calculate the range in minutes
+        let start_minutes = start_time.num_seconds_from_midnight() / 60;
+        let end_minutes = end_time.num_seconds_from_midnight() / 60;
 
-            // Calculate the range in minutes
-            let start_minutes = now.num_seconds_from_midnight() / 60;
-            let end_minutes = end_time.num_seconds_from_midnight() / 60;
+        // Generate a random number of minutes between the start and end
+        let random_minutes = rand::thread_rng().gen_range(start_minutes..=end_minutes);
+        let random_time = NaiveTime::from_hms_opt(random_minutes / 60, random_minutes % 60, 0);
 
-            // Generate a random number of minutes between the start and end
-            let random_minutes = rand::thread_rng().gen_range(start_minutes..=end_minutes);
-            let random_time = NaiveTime::from_hms_opt(random_minutes / 60, random_minutes % 60, 0);
-            let res = NaiveDateTime::new(now.date(), random_time.unwrap());
-            self.next = res;
-            self.save().await?;
-        }
+        let res = NaiveDateTime::new(
+            if self.last.date() == now.date() {
+                now.date().checked_add_days(Days::new(1)).unwrap()
+            } else {
+                now.date()
+            },
+            random_time.unwrap(),
+        );
+        self.next = res;
+        self.save().await?;
         println!("Sending Holly's list at {}", self.next);
         Ok(())
     }
