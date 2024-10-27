@@ -18,7 +18,11 @@ impl SendTime {
     pub async fn load(env: &crate::env::Env) -> anyhow::Result<Self> {
         let file_path = PathBuf::from_str(&env.working_path)?.join("send_time.json");
         if !std::fs::exists(&file_path)? {
-            return Ok(Self::default());
+            let res = Self {
+                path: file_path,
+                ..Default::default()
+            };
+            return Ok(res);
         }
         let s = std::fs::read_to_string(&file_path)?;
         let mut res: Self = serde_json::from_str(&s)?;
