@@ -92,14 +92,16 @@ pub async fn main(church_client: &mut ChurchClient) -> anyhow::Result<()> {
                                     continue;
                                 }
                             }
-                            avg_report = format!("{avg_report}\n{k}: {v}");
+                            let hours = v / 60;
+                            let minutes = v % 60;
+                            avg_report = format!("{avg_report}\n{k}: {hours}h {minutes}m");
                         }
                         for (zone_id, chat_id) in &holly_config.zone_chats {
                             let msg = if let Some(p) = report.get_pretty_zone(zone_id) {
-                                format!("Average Contact Time:\n{avg_report}\n\nUncontacted Referrals:\n\n{p}")
+                                format!("Good morning Zone!! The Lord has big plans for today - let's get started!\n\nAverage contact time over the past 24 hours:\n{avg_report}\n\nThese friends have not been successfully contacted yet. Please continue to be creative and persistent in your contacting!\n\n{p}")
                             } else {
                                 info!("No uncontacted referrals in {zone_id}");
-                                format!("Average Contact Time:{avg_report}\n\nNo uncontacted referrals! Great work!")
+                                format!("Good morning Zone!! The Lord has big plans for today - let's get started!\n\nAverage contact time over the past 24 hours:\n{avg_report}\n\nNo uncontacted referrals! GREAT work!")
                             };
                             info!("Sending {msg} to {chat_id}");
                             stream.write_all(&Message { content: msg, chat_id: chat_id.to_string(), ..Default::default() }.to_bytes()).await?;
@@ -109,6 +111,7 @@ pub async fn main(church_client: &mut ChurchClient) -> anyhow::Result<()> {
                             info!("Sending {msg} to {chat_id}");
                             stream.write_all(&Message { content: msg, chat_id: chat_id.to_string(), ..Default::default() }.to_bytes()).await?;
                         }
+
                     }
                 }
                 _ = rx.recv() => {
