@@ -121,9 +121,10 @@ pub async fn generate_report(church_client: &mut ChurchClient) -> anyhow::Result
     let persons_list: Vec<persons::Person> = persons_list
         .into_iter()
         .filter(|x| {
-            x.referral_status != persons::ReferralStatus::Successful
+            (x.referral_status != persons::ReferralStatus::Successful
                 && x.person_status < persons::PersonStatus::NewMember
-                && now.signed_duration_since(x.assigned_date) > Duration::hours(48)
+                && now.signed_duration_since(x.assigned_date) > Duration::hours(48))
+            || x.referral_status == persons::ReferralStatus::NotAttempted
         })
         .collect();
     info!("{} uncontacted referrals", persons_list.len());
@@ -155,8 +156,8 @@ pub async fn get_average(
         .into_iter()
         .filter(|x| {
             x.referral_status != persons::ReferralStatus::NotAttempted
-                && x.person_status < persons::PersonStatus::NewMember
-                && now.signed_duration_since(x.assigned_date) < Duration::days(42)
+                && (x.person_status < persons::PersonStatus::NewMember)
+                && now.signed_duration_since(x.assigned_date) < Duration::hours(24)
         })
         .collect();
 

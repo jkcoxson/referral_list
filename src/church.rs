@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, NaiveTime, Duration};
 use log::{info, warn};
 use reqwest::{redirect::Policy, Client};
 use reqwest_cookie_store::CookieStoreMutex;
@@ -19,7 +19,7 @@ use serde_json::json;
 
 use crate::{bearer::BearerToken, env, persons};
 
-pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36";
+pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
 const MAX_RETRIES: u8 = 3;
 
 #[derive(Debug)]
@@ -70,7 +70,7 @@ impl ChurchClient {
                     a.follow()
                 }
             }))
-            .timeout(std::time::Duration::from_secs(60))
+            .timeout(std::time::Duration::from_secs(240))
             .build()
             .expect("Couldn't build the HTTP client");
 
@@ -382,10 +382,8 @@ impl ChurchClient {
     ) -> anyhow::Result<Option<usize>> {
         let mut timeline = self.get_person_timeline(person).await?;
         timeline.reverse();
-
         let mut referral_sent = None;
         let mut last_contact = None;
-
         for item in timeline {
             match item.item_type {
                 persons::TimelineItemType::NewReferral => {
@@ -402,11 +400,25 @@ impl ChurchClient {
                 }
             }
         }
-
         if let Some(referral_sent) = referral_sent {
             if let Some(last_contact) = last_contact {
-                let duration = last_contact.signed_duration_since(referral_sent);
-                return Ok(Some(duration.num_minutes() as usize));
+                let referral_time = referral_sent.time();
+                let start_of_day = NaiveTime::from_hms_opt(6, 30, 0).unwrap();
+                let end_of_day = NaiveTime::from_hms_opt(22, 15, 0).unwrap();
+                let adjusted_referral_sent = if referral_time < start_of_day {
+                    referral_sent.date().and_time(start_of_day)
+                } else if referral_time > end_of_day {
+                    (referral_sent.date() + Duration::days(1)).and_time(start_of_day)
+                } else {
+                    referral_sent
+                };
+                if last_contact > adjusted_referral_sent {
+                    let duration = last_contact.signed_duration_since(adjusted_referral_sent);
+                    return Ok(Some(duration.num_minutes() as usize));
+                } else {
+                    info!("Last contact is before adjusted referral sent time.");
+                    return Ok(Some(0)); // Return 0 if last_contact is before adjusted_referral_sent
+                }
             }
         }
         Ok(None)
