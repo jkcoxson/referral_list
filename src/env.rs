@@ -66,7 +66,6 @@ pub fn check_vars() -> Env {
 fn save_var(key: &str, val: &str) {
     std::env::set_var(key, val);
     let selections = &["Yes", "No"];
-
     let selection = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Save this for future startups? This value will be saved in your .env file. If unsure, select yes.")
         .default(0)
@@ -75,14 +74,23 @@ fn save_var(key: &str, val: &str) {
         .unwrap();
 
     if selection == 0 {
-        // Write to the .env file
+        // Escape backslashes for Windows paths
+        let escaped_val = val.replace("\\", "\\\\");
+        let path = ".env";
+        // Write to the .env file using the escaped value
         let mut file = std::fs::OpenOptions::new()
             .append(true)
             .create(true)
-            .open(".env")
+            .open(path)
             .unwrap();
 
-        file.write_all(format!("{key}={val}\n").as_bytes()).unwrap();
+        // Check if file is non-empty and doesn't end with a newline
+        let needs_newline = std::fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false);
+        if needs_newline {
+            file.write_all(b"\n").unwrap();
+        }
+
+        file.write_all(format!("{key}={escaped_val}\n").as_bytes()).unwrap();
     }
 }
 
